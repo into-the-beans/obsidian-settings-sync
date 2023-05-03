@@ -1,9 +1,9 @@
 import { PluginSettingTab, App, Setting } from "obsidian";
 import SettingsSyncPlugin from "./main";
-import { folder, pluginSettings } from "./utilities";
+import { formatPath, pluginSettings } from "./utilities";
 
 export interface syncPluginSettings {
-	syncFolders: folder[];
+	syncFolders: string[];
 	syncPlugins: pluginSettings[];
 }
 
@@ -25,16 +25,26 @@ export class SyncPluginSettingTab extends PluginSettingTab {
 
 		containerEl.empty();
 
-		containerEl.createEl("h2", { text: "Settings for my awesome plugin." });
+		containerEl.createEl("h1", { text: this.plugin.manifest.name });
 
 		new Setting(containerEl)
-			.setName("Setting #1")
-			.setDesc("It's a secret")
-			.addText((text) =>
+			.setName("Config folder Directories")
+			.setDesc(
+				"Add the directories of the folders you want to sync (config folders should be in the root of the vault)"
+			)
+			.addTextArea((text) =>
 				text
-					.setPlaceholder("Enter your secret")
-					.setValue("")
-					.onChange(async (value) => {})
+					.setPlaceholder(".obsidian-mobile")
+					.setValue(this.plugin.settings.syncFolders.join("\n"))
+					.onChange(async (value) => {
+						let paths = value
+							.trim()
+							.split("\n")
+							.map((path) => formatPath(path, true));
+						this.plugin.settings.syncFolders = paths;
+						console.log(this.plugin.settings.syncFolders);
+						this.plugin.saveSettings();
+					})
 			);
 	}
 }
