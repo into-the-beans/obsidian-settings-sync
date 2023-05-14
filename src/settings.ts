@@ -1,7 +1,10 @@
 import { PluginSettingTab, App, Setting } from "obsidian";
 import SettingsSyncPlugin from "./main";
 import { formatPath, individualPluginSettings } from "./utilities";
-import { detectPlugins } from "./detect-plugins";
+import {
+	getFoldersFromPluginsDirectory,
+	getPluginSettingsFromDirectory,
+} from "./filesystem-functions";
 
 export interface syncPluginSettings {
 	syncFolders: string[];
@@ -21,6 +24,25 @@ export class SyncPluginSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	detectPlugins(folders: string[]): Map<string, individualPluginSettings[]> {
+		// folder name : plugins it has
+		const pluginMap = new Map<string, individualPluginSettings[]>();
+		folders.forEach((folder) => {
+			const configDirectory = formatPath(
+				this.plugin.vaultAbsoultePath + folder,
+				true
+			);
+			const pluginNames = getFoldersFromPluginsDirectory(configDirectory);
+			const pluginSettings = getPluginSettingsFromDirectory(
+				configDirectory,
+				pluginNames
+			);
+			pluginMap.set(folder, pluginSettings);
+		});
+
+		return pluginMap;
+	}
+
 	display(): void {
 		const { containerEl } = this;
 
@@ -35,9 +57,9 @@ export class SyncPluginSettingTab extends PluginSettingTab {
 			)
 			.addButton((button) =>
 				button.setButtonText("Detect Plugins").onClick(async () => {
-					detectPlugins(this.plugin.settings.syncFolders);
+					this.detectPlugins(this.plugin.settings.syncFolders);
 				})
-			)
+			) // help with this
 			.addTextArea((text) =>
 				text
 					.setPlaceholder(".obsidian-mobile")
