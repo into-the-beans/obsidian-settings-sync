@@ -1,4 +1,12 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin } from "obsidian";
+import {
+	App,
+	Editor,
+	FileSystemAdapter,
+	MarkdownView,
+	Modal,
+	Notice,
+	Plugin,
+} from "obsidian";
 import {
 	DEFAULT_SETTINGS,
 	SyncPluginSettingTab,
@@ -13,14 +21,15 @@ export default class SettingsSyncPlugin extends Plugin {
 	settings: syncPluginSettings;
 	rootPlugins: rootVaultPluginSettings[];
 	enabledPugins: string[];
+	vaultAbsoultePath: string;
+	vaultConfigPath: string;
 
 	getRootVaultPlugins(): string[] {
-		// get the plugins from the folders
+		// get the plugins from the folders (just need to go up one directory)
 		const plugin_folder = formatPath(
-			this.app.vault.configDir + "/plugins",
+			this.vaultConfigPath + "/plugins",
 			true
 		);
-		console.log(plugin_folder);
 
 		// get the names of all the folder in the plugins folder
 		const plugins = fs
@@ -34,21 +43,16 @@ export default class SettingsSyncPlugin extends Plugin {
 		const pluginSettings: rootVaultPluginSettings[] = [];
 		pluginNames.forEach((plugin) => {
 			const manifestPath = formatPath(
-				this.app.vault.configDir +
-					"/plugins" +
-					"/" +
-					plugin +
-					"/manifest.json",
+				this.vaultConfigPath + "/plugins/" + plugin + "/manifest.json",
 				false
 			);
-			console.log(manifestPath);
 			const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 			const individualPluginSettings: rootVaultPluginSettings = {
 				name: manifest.name,
 				id: manifest.id,
 				description: manifest.description,
 				path: formatPath(
-					this.app.vault.configDir + "/plugins" + "/" + plugin,
+					this.vaultConfigPath + "/plugins/" + plugin,
 					true
 				),
 				enabled: this.enabledPugins.includes(manifest.name),
@@ -61,19 +65,40 @@ export default class SettingsSyncPlugin extends Plugin {
 
 	getEnabledPlugins(): string[] {
 		const communityPluginsJSONPath = formatPath(
-			this.app.vault.configDir + "/community-plugins.json",
+			this.vaultConfigPath + "/community-plugins.json",
 			false
 		);
 		return JSON.parse(fs.readFileSync(communityPluginsJSONPath, "utf8"));
 	}
 
+	getAbsoluteVaultPath(): string {
+		if (app.vault.adapter instanceof FileSystemAdapter) {
+			return app.vault.adapter.getBasePath();
+		}
+		throw new Error("Unable to get vault path");
+	}
+
 	async onload() {
 		await this.loadSettings();
+		try {
+			this.vaultAbsoultePath = formatPath(
+				this.getAbsoluteVaultPath(),
+				true
+			);
+			this.vaultConfigPath = formatPath(
+				this.vaultAbsoultePath + this.app.vault.configDir,
+				true
+			);
+		} catch (e) {
+			console.log(e);
+			new Notice("Unable to get vault path");
+		}
+
 		this.enabledPugins = this.getEnabledPlugins();
 		this.rootPlugins = this.getRootPluginSettings(
 			this.getRootVaultPlugins()
 		);
-		console.log(this.rootPlugins);
+
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon(
 			"dice",
