@@ -1,10 +1,11 @@
 import { PluginSettingTab, App, Setting } from "obsidian";
 import SettingsSyncPlugin from "./main";
-import { formatPath, pluginSettings } from "./utilities";
+import { formatPath, individualPluginSettings } from "./utilities";
+import { detectPlugins } from "./detect-plugins";
 
 export interface syncPluginSettings {
 	syncFolders: string[];
-	syncPlugins: pluginSettings[];
+	syncPlugins: individualPluginSettings[];
 }
 
 export const DEFAULT_SETTINGS: syncPluginSettings = {
@@ -32,12 +33,17 @@ export class SyncPluginSettingTab extends PluginSettingTab {
 			.setDesc(
 				"Add the directories of the folders you want to sync (config folders should be in the root of the vault)"
 			)
+			.addButton((button) =>
+				button.setButtonText("Detect Plugins").onClick(async () => {
+					detectPlugins(this.plugin.settings.syncFolders);
+				})
+			)
 			.addTextArea((text) =>
 				text
 					.setPlaceholder(".obsidian-mobile")
 					.setValue(this.plugin.settings.syncFolders.join("\n"))
 					.onChange(async (value) => {
-						let paths = value
+						const paths = value
 							.trim()
 							.split("\n")
 							.map((path) => formatPath(path, true));

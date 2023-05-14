@@ -4,15 +4,76 @@ import {
 	SyncPluginSettingTab,
 	syncPluginSettings,
 } from "./settings";
+import { formatPath, rootVaultPluginSettings } from "./utilities";
+import * as fs from "fs";
 
 // Remember to rename these classes and interfaces!
 
 export default class SettingsSyncPlugin extends Plugin {
 	settings: syncPluginSettings;
+	rootPlugins: rootVaultPluginSettings[];
+	enabledPugins: string[];
+
+	getRootVaultPlugins(): string[] {
+		// get the plugins from the folders
+		const plugin_folder = formatPath(
+			this.app.vault.configDir + "/plugins",
+			true
+		);
+		console.log(plugin_folder);
+
+		// get the names of all the folder in the plugins folder
+		const plugins = fs
+			.readdirSync(plugin_folder, { withFileTypes: true })
+			.filter((dirent) => dirent.isDirectory())
+			.map((dirent) => dirent.name);
+		return plugins;
+	}
+
+	getRootPluginSettings(pluginNames: string[]): rootVaultPluginSettings[] {
+		const pluginSettings: rootVaultPluginSettings[] = [];
+		pluginNames.forEach((plugin) => {
+			const manifestPath = formatPath(
+				this.app.vault.configDir +
+					"/plugins" +
+					"/" +
+					plugin +
+					"/manifest.json",
+				false
+			);
+			console.log(manifestPath);
+			const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+			const individualPluginSettings: rootVaultPluginSettings = {
+				name: manifest.name,
+				id: manifest.id,
+				description: manifest.description,
+				path: formatPath(
+					this.app.vault.configDir + "/plugins" + "/" + plugin,
+					true
+				),
+				enabled: this.enabledPugins.includes(manifest.name),
+			};
+			pluginSettings.push(individualPluginSettings);
+		});
+
+		return pluginSettings;
+	}
+
+	getEnabledPlugins(): string[] {
+		const communityPluginsJSONPath = formatPath(
+			this.app.vault.configDir + "/community-plugins.json",
+			false
+		);
+		return JSON.parse(fs.readFileSync(communityPluginsJSONPath, "utf8"));
+	}
 
 	async onload() {
 		await this.loadSettings();
-
+		this.enabledPugins = this.getEnabledPlugins();
+		this.rootPlugins = this.getRootPluginSettings(
+			this.getRootVaultPlugins()
+		);
+		console.log(this.rootPlugins);
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon(
 			"dice",
