@@ -12,64 +12,17 @@ import {
 	SyncPluginSettingTab,
 	syncPluginSettings,
 } from "./settings";
-import { formatPath, rootVaultPluginSettings } from "./utilities";
-import * as fs from "fs";
-
-// Remember to rename these classes and interfaces!
+import { formatPath, individualPluginSettings } from "./utilities";
+import {
+	getFoldersFromPluginsDirectory,
+	getPluginSettingsFromDirectory,
+} from "./filesystem-functions";
 
 export default class SettingsSyncPlugin extends Plugin {
 	settings: syncPluginSettings;
-	rootPlugins: rootVaultPluginSettings[];
-	enabledPugins: string[];
+	rootVaultPlugins: individualPluginSettings[];
 	vaultAbsoultePath: string;
 	vaultConfigPath: string;
-
-	getRootVaultPlugins(): string[] {
-		// get the plugins from the folders (just need to go up one directory)
-		const plugin_folder = formatPath(
-			this.vaultConfigPath + "/plugins",
-			true
-		);
-
-		// get the names of all the folder in the plugins folder
-		const plugins = fs
-			.readdirSync(plugin_folder, { withFileTypes: true })
-			.filter((dirent) => dirent.isDirectory())
-			.map((dirent) => dirent.name);
-		return plugins;
-	}
-
-	getRootPluginSettings(pluginNames: string[]): rootVaultPluginSettings[] {
-		const pluginSettings: rootVaultPluginSettings[] = [];
-		pluginNames.forEach((plugin) => {
-			const manifestPath = formatPath(
-				this.vaultConfigPath + "/plugins/" + plugin + "/manifest.json",
-				false
-			);
-			const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-			const individualPluginSettings: rootVaultPluginSettings = {
-				name: manifest.name,
-				id: manifest.id,
-				description: manifest.description,
-				path: formatPath(
-					this.vaultConfigPath + "/plugins/" + plugin,
-					true
-				),
-				enabled: this.enabledPugins.includes(manifest.name),
-			};
-			pluginSettings.push(individualPluginSettings);
-		});
-
-		return pluginSettings;
-	}
-
-	getEnabledPlugins(): string[] {
-		const communityPluginsJSONPath = formatPath(
-			this.vaultConfigPath + "/community-plugins.json",
-			false
-		);
-		return JSON.parse(fs.readFileSync(communityPluginsJSONPath, "utf8"));
-	}
 
 	getAbsoluteVaultPath(): string {
 		if (app.vault.adapter instanceof FileSystemAdapter) {
@@ -81,23 +34,24 @@ export default class SettingsSyncPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 		try {
-			this.vaultAbsoultePath = formatPath(
-				this.getAbsoluteVaultPath(),
-				true
-			);
+			this.vaultAbsoultePath = formatPath(this.getAbsoluteVaultPath());
 			this.vaultConfigPath = formatPath(
-				this.vaultAbsoultePath + this.app.vault.configDir,
-				true
+				this.vaultAbsoultePath + "/" + this.app.vault.configDir
 			);
 		} catch (e) {
-			console.log(e);
+			console.error(e);
 			new Notice("Unable to get vault path");
 		}
-
-		this.enabledPugins = this.getEnabledPlugins();
-		this.rootPlugins = this.getRootPluginSettings(
-			this.getRootVaultPlugins()
-		);
+		try {
+			this.rootVaultPlugins = getPluginSettingsFromDirectory(
+				this.vaultConfigPath,
+				getFoldersFromPluginsDirectory(
+					formatPath(this.vaultConfigPath + "/plugins")
+				)
+			);
+		} catch (e) {
+			console.error(e);
+		}
 
 		// This creates an icon in the left ribbon.
 		const ribbonIconEl = this.addRibbonIcon(

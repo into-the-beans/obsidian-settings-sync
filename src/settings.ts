@@ -8,12 +8,12 @@ import {
 
 export interface syncPluginSettings {
 	syncFolders: string[];
-	syncPlugins: individualPluginSettings[];
+	syncPlugins: Map<string, individualPluginSettings[]>;
 }
 
 export const DEFAULT_SETTINGS: syncPluginSettings = {
 	syncFolders: [],
-	syncPlugins: [],
+	syncPlugins: new Map<string, individualPluginSettings[]>(),
 };
 
 export class SyncPluginSettingTab extends PluginSettingTab {
@@ -29,8 +29,7 @@ export class SyncPluginSettingTab extends PluginSettingTab {
 		const pluginMap = new Map<string, individualPluginSettings[]>();
 		folders.forEach((folder) => {
 			const configDirectory = formatPath(
-				this.plugin.vaultAbsoultePath + folder,
-				true
+				this.plugin.vaultAbsoultePath + folder
 			);
 			const pluginNames = getFoldersFromPluginsDirectory(configDirectory);
 			const pluginSettings = getPluginSettingsFromDirectory(
@@ -57,9 +56,11 @@ export class SyncPluginSettingTab extends PluginSettingTab {
 			)
 			.addButton((button) =>
 				button.setButtonText("Detect Plugins").onClick(async () => {
-					this.detectPlugins(this.plugin.settings.syncFolders);
+					this.plugin.settings.syncPlugins = this.detectPlugins(
+						this.plugin.settings.syncFolders
+					);
 				})
-			) // help with this
+			)
 			.addTextArea((text) =>
 				text
 					.setPlaceholder(".obsidian-mobile")
@@ -68,7 +69,7 @@ export class SyncPluginSettingTab extends PluginSettingTab {
 						const paths = value
 							.trim()
 							.split("\n")
-							.map((path) => formatPath(path, true));
+							.map((path) => formatPath(path));
 						this.plugin.settings.syncFolders = paths;
 						console.log(this.plugin.settings.syncFolders);
 						this.plugin.saveSettings();
