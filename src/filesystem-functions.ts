@@ -4,11 +4,17 @@ import { formatPath, individualPluginSettings } from "./utilities";
 export function getFoldersFromPluginsDirectory(
 	plugin_folder: string
 ): string[] {
-	const plugins = fs
-		.readdirSync(plugin_folder, { withFileTypes: true })
-		.filter((dirent) => dirent.isDirectory())
-		.map((dirent) => dirent.name);
-	return plugins;
+	try {
+		const plugins = fs
+			.readdirSync(plugin_folder, { withFileTypes: true })
+			.filter((dirent) => dirent.isDirectory())
+			.map((dirent) => dirent.name);
+		return plugins;
+	} catch (e) {
+		throw new Error(
+			"Error reading plugins directory. Please check that the path is correct and that you have the correct permissions."
+		);
+	}
 }
 
 /**
