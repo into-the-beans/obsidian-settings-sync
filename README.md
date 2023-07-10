@@ -9,3 +9,5 @@ by copying the settings to different Obsidian configuration folders. The Python 
 
 -   Automatic copying of settings with a customizable interval
 -   Copy Obsidian core settings
+-   Hotkeys
+-   CSS Snippets
