@@ -1,6 +1,6 @@
 import { PluginSettingTab, App, Setting, Notice } from "obsidian";
 import SettingsSyncPlugin from "./main";
-import { formatPath, individualPluginSettings } from "./utilities";
+import { formatPath, pluginData } from "./utilities";
 import {
 	getFoldersFromPluginsDirectory,
 	getPluginSettingsFromDirectory,
@@ -8,7 +8,7 @@ import {
 
 export interface syncPluginSettings {
 	syncFolders: string[];
-	syncPlugins: Map<string, individualPluginSettings[]>[];
+	syncPlugins: pluginData[];
 }
 
 export const DEFAULT_SETTINGS: syncPluginSettings = {
@@ -18,18 +18,26 @@ export const DEFAULT_SETTINGS: syncPluginSettings = {
 
 export class SyncPluginSettingTab extends PluginSettingTab {
 	plugin: SettingsSyncPlugin;
+	once = true;
 
 	constructor(app: App, plugin: SettingsSyncPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
-	detectPlugins(
-		folders: string[]
-	): Map<string, individualPluginSettings[]>[] {
+	async removeInvalidFolder(folder: string): Promise<void> {
+		new Notice("Unable to get plugins from " + folder);
+		this.plugin.settings.syncFolders =
+			this.plugin.settings.syncFolders.filter((f) => f != folder);
+
+		await this.plugin.saveSettings();
+	}
+
+	detectPlugins(): pluginData[] {
+		const folders = this.plugin.settings.syncFolders;
 		// folder name : plugins it has
-		const pluginMaps: Map<string, individualPluginSettings[]>[] = [];
-		folders.forEach((folder) => {
+		const pluginList: pluginData[] = [];
+		for (const folder of folders) {
 			const configDirectory = formatPath(
 				this.plugin.vaultAbsoultePath + "/" + folder + "/"
 			);
@@ -42,45 +50,43 @@ export class SyncPluginSettingTab extends PluginSettingTab {
 					configDirectory,
 					pluginNames
 				);
-				const pluginMap = new Map<string, individualPluginSettings[]>();
-				pluginMap.set(folder, pluginSettings);
-				pluginMaps.push(pluginMap);
+				const plugin: pluginData = {
+					pluginFolder: folder,
+					pluginSettings: pluginSettings,
+				};
+				pluginList.push(plugin);
 			} catch (e) {
 				console.error(e);
-				new Notice("Unable to get plugins from " + folder);
-				this.plugin.settings.syncFolders =
-					this.plugin.settings.syncFolders.filter((f) => f != folder);
-
-				this.plugin.saveSettings();
-			}
-		});
-
-		return pluginMaps;
-	}
-
-	displayPlugins(): void {
-		this.containerEl.empty();
-		this.display();
-		for (const map of this.plugin.settings.syncPlugins) {
-			for (const [key, value] of map.entries()) {
-				this.containerEl.createEl("h2", { text: key });
-				for (const plugin of value) {
-					new Setting(this.containerEl)
-						.setName(plugin.name)
-						.setDesc(plugin.description)
-						.addToggle((toggle) =>
-							toggle
-								.setValue(plugin.synced)
-								.onChange(async (value) => {
-									plugin.synced = value;
-									this.plugin.saveSettings();
-								})
-								.setTooltip("Sync this plugin")
-						);
-				}
+				this.removeInvalidFolder(folder);
 			}
 		}
+
+		return pluginList;
 	}
+
+	// displayPlugins(): void {
+	// 	this.containerEl.empty();
+	// 	this.display();
+	// 	for (const map of this.plugin.settings.syncPlugins) {
+	// 		for (const [key, value] of map.entries()) {
+	// 			this.containerEl.createEl("h2", { text: key });
+	// 			for (const plugin of value) {
+	// 				new Setting(this.containerEl)
+	// 					.setName(plugin.name)
+	// 					.setDesc(plugin.description)
+	// 					.addToggle((toggle) =>
+	// 						toggle
+	// 							.setValue(plugin.synced)
+	// 							.onChange(async (value) => {
+	// 								plugin.synced = value;
+	// 								this.plugin.saveSettings();
+	// 							})
+	// 							.setTooltip("Sync this plugin")
+	// 					);
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	display(): void {
 		const { containerEl } = this;
@@ -88,7 +94,7 @@ export class SyncPluginSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		containerEl.createEl("h1", { text: this.plugin.manifest.name });
-
+		// @TODO fix overwriting already existing settings
 		new Setting(containerEl)
 			.setName("Config folder Directories")
 			.setDesc(
@@ -96,11 +102,10 @@ export class SyncPluginSettingTab extends PluginSettingTab {
 			)
 			.addButton((button) =>
 				button.setButtonText("Detect Plugins").onClick(async () => {
-					this.plugin.settings.syncPlugins = this.detectPlugins(
-						this.plugin.settings.syncFolders
-					);
-					this.plugin.saveSettings();
-					this.displayPlugins();
+					this.plugin.settings.syncPlugins = this.detectPlugins();
+					await this.plugin.saveSettings();
+					this.display();
+					// this.displayPlugins();
 				})
 			)
 			.addTextArea((text) =>
@@ -113,8 +118,32 @@ export class SyncPluginSettingTab extends PluginSettingTab {
 							.split("\n")
 							.map((path) => path);
 						this.plugin.settings.syncFolders = paths;
-						this.plugin.saveSettings();
+						await this.plugin.saveSettings();
 					})
 			);
+		for (const pluginData of this.plugin.settings.syncPlugins) {
+			try {
+				this.containerEl.createEl("h2", {
+					text: pluginData.pluginFolder,
+				});
+				for (const plugin of pluginData.pluginSettings) {
+					new Setting(this.containerEl)
+						.setName(plugin.name)
+						.setDesc(plugin.description)
+						.addToggle((toggle) =>
+							toggle
+								.setValue(plugin.synced)
+								.onChange(async (value) => {
+									plugin.synced = value;
+									await this.plugin.saveSettings();
+								})
+						)
+						.setTooltip("Sync this plugin");
+				}
+			} catch (e) {
+				console.log("Plugins Empty");
+				console.log(e);
+			}
+		}
 	}
 }

@@ -14,3 +14,8 @@ export function formatPath(directory: string): string {
 	const formattedPath = path.join(...pathTokens);
 	return formattedPath;
 }
+
+export interface pluginData {
+	pluginFolder: string;
+	pluginSettings: individualPluginSettings[];
+}
